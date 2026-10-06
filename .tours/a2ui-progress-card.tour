@@ -1,0 +1,83 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Fixed-schema A2UI: the progress card",
+  "description": "How the tutor's showProgress tool puts a card in the chat as A2UI operations instead of a hand-written React component: numbers from SQL, a tree authored once, a catalog with a custom ProgressBar. Follows on from \"Controlled generative UI: useRenderTool\". About 10 minutes including the demo. Run all commands from the repository root.",
+  "steps": [
+    {
+      "title": "Demo: a card the frontend never wrote",
+      "description": "Start `npm run dev`, open http://localhost:3000, sign in, make sure a few items are on the list and at least one is crossed off, then type: How am I getting on with my list?\n\nExpect a card in the transcript, not a tool row: a heading \"Progress on the list\", a graphite bar with \"N of M done\" above it, and two captions underneath with the done and open shares. Bartholomew adds one short sentence and does not repeat the figures.\n\nIn the CopilotKit Inspector, look for an `ACTIVITY_SNAPSHOT` event of type `a2ui-surface` after the `showProgress` tool result.\n\n**Question:** no React component in this repo is called \"progress card\". So what drew it?"
+    },
+    {
+      "file": "lib/todo-tools.ts",
+      "line": 96,
+      "title": "Numbers: counted by SQL, not by the model",
+      "description": "`todoProgressFor` is one aggregate query over the caller's rows: `count()` and the sum of `done`. The shares are whole percentages, and `openPercent` is the remainder, so the two always add up to 100. An empty list returns zeros instead of dividing by zero.\n\n**Key point:** it lives beside every other todo query, filtered by the same `userId`, so a second user's items cannot leak into the figures. The model sees these numbers only after the fact, never produces them."
+    },
+    {
+      "file": "lib/progress-card.ts",
+      "line": 47,
+      "title": "Schema: the tree, authored once",
+      "description": "This is the card, as A2UI v0.9 components: a flat list with ids, wired together through `child` and `children`. The renderer starts at `root`.\n\n**Show:** no number appears in the tree. `ProgressBar` takes `{ path: \"/done\" }` and `{ path: \"/total\" }`, which are JSON Pointers into the data model. The captions use the basic catalog's `formatString` with `${/done}` interpolation, so the client fills them in.\n\n`Card`, `Column`, `Row` and `Text` come from the basic catalog. `ProgressBar` is ours, because the basic catalog has none.\n\nThis module carries no `server-only` marker on purpose: the browser imports `TUTOR_CATALOG_ID` from it, and the two sides have to agree on that id."
+    },
+    {
+      "file": "lib/progress-card.ts",
+      "line": 92,
+      "title": "Operations: create, structure, data",
+      "description": "One card is three messages, in this order: `createSurface` names the surface and the catalog to draw it from, `updateComponents` sends the tree, `updateDataModel` puts the figures at `/`.\n\n**Distinction:** structure and data travel separately. A later update could change the numbers on the same surface without resending the tree. This is the fixed-schema flavour of A2UI: the developer owns the layout, the data comes from the backend."
+    },
+    {
+      "file": "lib/todo-tools.ts",
+      "line": 179,
+      "title": "Tool: the result is the card",
+      "description": "`showProgress` takes no input, reads the figures, and returns `{ a2ui_operations: [...] }`. That key is the entire handshake: nothing calls a renderer and there is no second model call.\n\nEach call gets a fresh `surfaceId`, so a card drawn earlier in the transcript keeps the figures it was drawn with.\n\n**Contrast with the previous tour:** `addTodo` returns data and a hand-written React row interprets it. `showProgress` returns the UI description itself."
+    },
+    {
+      "file": "lib/tutor.ts",
+      "line": 46,
+      "title": "Agent: when to show it, and what not to say",
+      "description": "The instructions name `showProgress` and say when to reach for it. They also tell the model not to count, repeat or round the figures, because the card already states them. Without that line the model tends to restate the numbers in prose, and then there are two sources that can disagree."
+    },
+    {
+      "file": "app/api/copilotkit/[...all]/route.ts",
+      "line": 38,
+      "title": "Runtime: paint, but do not inject",
+      "description": "`a2ui` on the `CopilotRuntime` installs the A2UI middleware for the tutor. The middleware watches the AG-UI stream, finds `a2ui_operations` in the `TOOL_CALL_RESULT` that `@ag-ui/mastra` emits as `JSON.stringify(result)`, and turns it into an `a2ui-surface` activity.\n\n**Trap:** `injectA2UITool: false` has to be explicit. Leave it out and the catalog the browser announces would make the runtime inject `render_a2ui`, a tool for the model to *generate* UI with. That is a later step, so for now the tutor's own four tools are the only ones it has."
+    },
+    {
+      "file": "components/chat.tsx",
+      "line": 38,
+      "title": "Provider: registering the catalog",
+      "description": "The `a2ui` prop hands the provider our catalog, which also switches on CopilotKit's built-in A2UI activity renderer. No `useRenderTool` is involved, and the three existing tool rows are untouched.\n\n`includeSchema: false` (defined at the top of the file) keeps the catalog's component schemas and generation guidelines out of the model's context: nothing here asks the model to compose UI, so they would only cost tokens and invite it to try."
+    },
+    {
+      "file": "components/a2ui-catalog.tsx",
+      "line": 15,
+      "title": "Trap: the binder speaks zod 3",
+      "description": "The A2UI binder decides which props to resolve against the data model by inspecting the zod schema's internals (`_def.typeName`), which are zod 3's. With the app's zod 4, `{ path: \"/done\" }` would reach the component unresolved.\n\n`zod/v3` from zod 4 does not help either: TypeScript rejects its `ZodObject` in place of the renderer's. Hence the `zod3` alias in `package.json`, pinned to the renderer's own version."
+    },
+    {
+      "file": "components/a2ui-catalog.tsx",
+      "line": 29,
+      "title": "Catalog: definitions and renderers",
+      "description": "Each entry pairs a props schema with a renderer. `ProgressBar` declares `value`, `max` and `label` as `Dynamic*` unions (literal or binding), which is what tells the binder to resolve them; the renderer below only ever sees plain values.\n\n`Card` and `Text` reuse the basic catalog's names and schemas but are drawn by the design system: the stock card brings an 8px radius and a shadow, the stock heading weight 700. Because `includeBasicCatalog` puts the basic components first and ours after, ours replace them under the same name.\n\n**Key point:** the catalog is the security boundary. A surface can only use what is registered here."
+    },
+    {
+      "file": "components/ui/progress-bar.tsx",
+      "line": 31,
+      "title": "Primitive: an ordinary React component",
+      "description": "`ProgressBar` knows nothing about A2UI: value, max, label. Graphite on a hairline track, square, never blue, because blue in the transcript means a call is running.\n\nThe figure is written out in the label and repeated as `aria-valuetext`, so the fill is never the only channel. It clamps at both ends and draws an empty track for `max` 0."
+    },
+    {
+      "file": "tests/unit/todo-tools.test.ts",
+      "line": 212,
+      "title": "Contract: well-formed, and true to the rows",
+      "description": "These run the real tool against a throwaway SQLite file.\n\nThis test validates the operations with A2UI's own strict `A2uiMessageListSchema`, then checks the tree: unique ids, a `root`, no dangling child, every basic component passing the basic catalog's strict schema, every function a basic function, and every binding landing on a key the data model holds.\n\nThe next tests check that the figures equal the rows (with another user's items present), that an empty list gives zeros, and that each call opens a new surface."
+    },
+    {
+      "file": "tests/unit/progress-bar.test.tsx",
+      "line": 59,
+      "title": "Contract: the card actually renders",
+      "description": "The `ProgressBar` tests above pin the primitive. This one feeds the real `progressCardOperations` through `A2UIProvider` with our catalog and asserts the resolved text and the bar's value. It is the test that would catch the zod 3 trap: an unresolved binding never shows \"2 of 3 done\". It also asserts the stock shadowed card is gone.\n\n`tests/unit/copilotkit-route.test.ts` pins the last piece: the runtime is built with `injectA2UITool: false`.\n\n**Transition:** the layout is fixed and the model only chooses *when* to show it. The next step hands the model the catalog and lets it compose the surface itself."
+    }
+  ]
+}

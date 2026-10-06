@@ -2,9 +2,12 @@
 
 import { CopilotChat, CopilotKit } from "@copilotkit/react-core/v2";
 import "@copilotkit/react-core/v2/styles.css";
+import { tutorCatalog } from "@/components/a2ui-catalog";
 import { TodoToolCalls } from "@/components/todo-tool-calls";
 import { TodosSidebar } from "@/components/todos-sidebar";
 import type { TodoItem } from "@/lib/todo-tools";
+
+const a2ui = { catalog: tutorCatalog, includeSchema: true };
 
 /**
  * The whole signed-in surface: the provider, the chat, and the sidebar that
@@ -27,7 +30,12 @@ export function Chat({
     // production one, so `enableInspector` is left unset deliberately;
     // `showDevConsole` is deprecated and no longer controls it either way.
     // app/globals.css moves its launcher off the header's sign-out button.
-    <CopilotKit runtimeUrl="/api/copilotkit" credentials="include">
+    // `a2ui` registers the catalog every surface is drawn from (see
+    // components/a2ui-catalog.tsx). `includeSchema: true` puts its component
+    // schemas and generation guidelines in the model's context, and with them
+    // the catalog id the injected `generate_a2ui` reads to aim its surfaces at
+    // this catalog; without it they ask for the bare basic one.
+    <CopilotKit runtimeUrl="/api/copilotkit" credentials="include" a2ui={a2ui}>
       {/* Registers the transcript renderers for the tutor's tools; draws
           nothing itself, but has to be inside the provider. */}
       <TodoToolCalls />

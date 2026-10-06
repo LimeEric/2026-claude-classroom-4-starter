@@ -1,9 +1,14 @@
 import { RequestContext } from "@mastra/core/request-context";
 import { createTool } from "@mastra/core/tools";
 import { Todo } from "ai-tutor-api-contract";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, sql } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/libsql/node";
 import { z } from "zod";
+import {
+  A2UI_OPERATIONS_KEY,
+  progressCardOperations,
+  type TodoProgress,
+} from "@/lib/progress-card";
 import type * as schema from "@/lib/schema";
 import { todos } from "@/lib/schema";
 
@@ -83,6 +88,34 @@ export async function setTodoDoneFor(
   return row ?? null;
 }
 
+/**
+ * The one count of the list, behind the `showProgress` card. The shares are
+ * whole percentages, and `openPercent` is the remainder rather than rounded on
+ * its own, so the two always add up to 100.
+ */
+export async function todoProgressFor(
+  db: TodoDb,
+  userId: string,
+): Promise<TodoProgress> {
+  const [row] = await db
+    .select({
+      total: count(),
+      done: sql<number>`coalesce(sum(${todos.done}), 0)`.mapWith(Number),
+    })
+    .from(todos)
+    .where(eq(todos.userId, userId));
+
+  const { total, done } = row;
+  const donePercent = total === 0 ? 0 : Math.round((done / total) * 100);
+  return {
+    total,
+    done,
+    open: total - done,
+    donePercent,
+    openPercent: total === 0 ? 0 : 100 - donePercent,
+  };
+}
+
 export type TodoItem = Awaited<ReturnType<typeof listTodosFor>>[number];
 
 /**
@@ -138,5 +171,27 @@ export function createTodoTools(db: TodoDb) {
     }),
   });
 
-  return { listTodos, addTodo, setTodoDone };
+  // Returns the card itself rather than the figures: the A2UI middleware the
+  // CopilotKit route installs finds the operations in this result and paints
+  // the surface, so there is no second model call and nothing for the model
+  // to compute. Each call gets its own surface, so an earlier card in the
+  // transcript keeps the figures it was drawn with.
+  const showProgress = createTool({
+    id: "showProgress",
+    description:
+      "Show the student a card in the chat with how far along their to-do list is: how many items there are, and what share is done and open. The card states the figures itself.",
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      [A2UI_OPERATIONS_KEY]: z.array(z.record(z.string(), z.unknown())),
+    }),
+    requestContextSchema,
+    execute: async (_input, { requestContext }) => ({
+      [A2UI_OPERATIONS_KEY]: progressCardOperations(
+        `todo-progress-${crypto.randomUUID()}`,
+        await todoProgressFor(db, requestContext.get("userId")),
+      ),
+    }),
+  });
+
+  return { listTodos, addTodo, setTodoDone, showProgress };
 }

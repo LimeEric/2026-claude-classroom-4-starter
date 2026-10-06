@@ -133,6 +133,32 @@ border-l-2 border-danger bg-danger-surface px-3 py-2 text-sm text-danger
 The left rule carries the alarm, matching the tool-call marker; the tint alone
 would be colour-only state.
 
+## Progress bar
+
+```
+label: text-sm text-ink-soft tabular-nums
+track: h-2 w-full bg-rule      fill: h-full bg-ink-soft
+```
+
+A share of a whole (`components/ui/progress-bar.tsx`). Graphite on a hairline
+track, square, never blue: a reading is not a link, and blue in the transcript
+already means a call is running. The figure is always written out in the label
+above the bar, so the fill is never the only channel. `ink-soft` rather than
+`button` for the fill, because the graphite button colour all but vanishes
+into the dark track.
+
+## A2UI cards in the transcript
+
+A card the agent draws through A2UI is built from `components/a2ui-catalog.tsx`,
+not from the stock basic catalog styles, which bring an 8px radius, a drop
+shadow and `#666` captions. The catalog redraws `Card` as a panel
+(`border border-edge bg-surface p-3`) and `Text` on our type scale: `h1`/`h2`
+at `text-xl`, `h3`–`h5` at `text-base`, all 600; `caption` at
+`text-sm text-ink-mute tabular-nums`. Leaves carry `m-1`, which with the
+card's `p-3` lands on 8px between leaves and 16px to the edge. A new
+component that the agent's surfaces need goes into that catalog with the same
+recipes as its React twin in `components/ui/`.
+
 ## The chat, which is not ours
 
 `CopilotChat` ships its own theme, and bending it is fiddly enough to be worth

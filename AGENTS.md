@@ -1,12 +1,16 @@
+<!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
+<!-- END:nextjs-agent-rules -->
+
 # ai-tutor
 
-AI tutoring web app on Next.js 16 App Router + React 19 + Tailwind v4: a Mastra agent (Bartholomew, a butler who keeps the user's to-do list) served to a CopilotKit chat over AG-UI, behind Better Auth email/password sign-in, over a Drizzle/SQLite persistence layer, with a Vitest + Playwright test harness. The same list is reachable through a REST API, a CLI, and two MCP servers.
+AI tutoring web app on Next.js 16 App Router + React 19 + Tailwind v4: a Mastra agent (Bartholomew, a butler who keeps the user's to-do list) served to a CopilotKit chat over AG-UI, with A2UI cards in the transcript, behind Better Auth email/password sign-in, over a Drizzle/SQLite persistence layer, with a Vitest + Playwright test harness. The same list is reachable through a REST API, a CLI, and two MCP servers.
 
 The source is commented where a decision is not obvious; this file is the map, plus the traps that no single file shows. Open the file before asking here.
 
@@ -25,14 +29,16 @@ app/
   api/mcp/                        MCP server over HTTP, OAuth-protected
   .well-known/                    OAuth discovery documents, handed to Better Auth
 components/
-  chat.tsx                        CopilotKit provider, CopilotChat, and the sidebar in one tree
+  chat.tsx                        CopilotKit provider (with the A2UI catalog), CopilotChat, and the sidebar in one tree
+  a2ui-catalog.tsx                the A2UI catalog: the basic components plus ProgressBar, with Card and Text redrawn
   todos-sidebar.tsx               read-only mirror of the list; the agent is the browser's only write path
-  todo-tool-calls.tsx             useRenderTool renderers for the three agent tools
+  todo-tool-calls.tsx             useRenderTool rows for listTodos, addTodo, setTodoDone (showProgress draws through A2UI)
   project-wizard.tsx, device-approval.tsx, oauth-consent.tsx, sign-out-button.tsx
   ui/                             presentational primitives — extend one instead of repeating its class string
 lib/
   tutor.ts                        the whole agent: instructions, model, memory, tools
   todo-tools.ts                   every todo query; the agent tools, the REST routes and both MCP servers call it
+  progress-card.ts                showProgress's A2UI tree and operations, and the catalog id the browser registers
   db.ts, schema.ts, auth-schema.ts   cached Drizzle connection; app tables; generated auth tables
   auth.ts, auth-config.ts, auth-cli.ts, auth-client.ts   server instance; shared options; auth:generate target; browser client
   api-route.ts                    bearer-only session and JSON helpers for /api/todos
@@ -70,6 +76,7 @@ docs/mcp.md                       registering both MCP servers with Claude Code
 - The e2e and CLI test servers set `NEXT_DIST_DIR` (`.next-e2e`, `.next-cli-test`) to coexist with a running `npm run dev`; `next dev` adds their type dirs to `tsconfig.json` itself and reformats the file, so run `npm run format` afterwards.
 - `@copilotkit/runtime` drags in a zod-3 tree while Better Auth is on zod 4; npm nests the zod 3 copy under `@copilotkit/runtime/node_modules` on its own — no `.npmrc` or `--legacy-peer-deps`.
 - `@modelcontextprotocol/ext-apps` 2.x is a root dependency while `@copilotkit/react-core` nests its own 1.7.5; both are expected in `npm ls`.
+- `@copilotkit/a2ui-renderer`, `@a2ui/web_core` and the `zod3` alias (`npm:zod@3`) are the versions `@copilotkit/react-core` itself resolves, so bump them with CopilotKit or the catalog's types stop matching the renderer's.
 
 ### Persistence and auth
 
@@ -86,6 +93,9 @@ docs/mcp.md                       registering both MCP servers with Claude Code
 
 - `@copilotkit/react-core/v2` and `@copilotkit/runtime/v2` (`createCopilotRuntimeHandler`) are the only surfaces that work here; `@copilotkit/react-ui`, the package roots, and the Express/Hono adapters are v1.
 - CopilotKit questions go through the `copilotkit` skill, which sends you to the `copilotkit-docs` MCP server in `.mcp.json`; Mastra questions through the `mastra` skill.
+- A tool draws a fixed A2UI card by returning `{ a2ui_operations: [...] }`, which the runtime's A2UI middleware paints; the route's `injectA2UITool: true` also gives the model a UI-generating tool, which the Mastra bridge turns from `render_a2ui` into `generate_a2ui`, a subagent on the tutor's own model.
+- The injected tool learns the catalog id only from the schema context, so `includeSchema` on the provider stays `true`, or its surfaces ask for the basic catalog instead of ours.
+- A2UI catalog prop schemas must be zod 3 (`zod3`), because the binder reads zod 3 internals and passes a zod 4 prop's `{ path }` through unresolved.
 - Mastra memory is durable in SQLite, but the default `InMemoryAgentRunner` also keeps a bounded replay cache that can restore the browser transcript until eviction or restart — do not mistake either for the other when debugging.
 
 ### Styling
@@ -115,4 +125,4 @@ docs/mcp.md                       registering both MCP servers with Claude Code
 - Update this file in the same change set whenever a change invalidates a line here or teaches a costly lesson.
 - Keep it a map plus non-obvious traps: anything a reader learns by opening the file a line points to belongs in that file's comments, not here.
 - One sentence per bullet, current state only, no history.
-- The two `.tours/*.tour` files anchor by line number into the files they name (`app/page.tsx`, `lib/tutor.ts`, `lib/todo-tools.ts`, the CopilotKit route, `components/`, `scripts/build-views.mjs`, `lib/mcp-app-views.ts`, `mcp-apps/todo-form/`, `package.json`, `.gitignore`, and their tests), so re-check `line` values when those statements move.
+- The three `.tours/*.tour` files anchor by line number into the files they name (`app/page.tsx`, `lib/tutor.ts`, `lib/todo-tools.ts`, `lib/progress-card.ts`, the CopilotKit route, `components/`, `scripts/build-views.mjs`, `lib/mcp-app-views.ts`, `mcp-apps/todo-form/`, `package.json`, `.gitignore`, and their tests), so re-check `line` values when those statements move.

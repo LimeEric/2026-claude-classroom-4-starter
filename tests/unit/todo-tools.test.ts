@@ -2,12 +2,25 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { A2uiMessageListSchema } from "@a2ui/web_core/v0_9";
+import {
+  BASIC_COMPONENTS,
+  BASIC_FUNCTION_APIS,
+} from "@a2ui/web_core/v0_9/basic_catalog";
 import { RequestContext } from "@mastra/core/request-context";
 import type { ValidationError } from "@mastra/core/tools";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { drizzle } from "drizzle-orm/libsql/node";
-import { afterAll, beforeAll, beforeEach, expect, test } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "vitest";
 
+import { TUTOR_CATALOG_ID } from "@/lib/progress-card";
 import * as schema from "@/lib/schema";
 import { todos, user } from "@/lib/schema";
 import { createTodoTools, tutorRequestContext } from "@/lib/todo-tools";
@@ -150,4 +163,158 @@ test("an execution without a user id is refused rather than run", async () => {
 
   expect(result).toMatchObject({ error: true });
   expect(await db.select().from(todos)).toEqual([]);
+});
+
+describe("showProgress", () => {
+  type Component = { id: string; component: string } & Record<string, unknown>;
+
+  const showProgress = async (context: RequestContext) =>
+    (await run(tools.showProgress, {}, context)).a2ui_operations;
+
+  const partsOf = (operations: Record<string, unknown>[]) => {
+    const [create, update, data] = operations as unknown as [
+      { createSurface: { surfaceId: string; catalogId: string } },
+      { updateComponents: { surfaceId: string; components: Component[] } },
+      { updateDataModel: { surfaceId: string; path: string; value: object } },
+    ];
+    return {
+      surface: create.createSurface,
+      components: update.updateComponents.components,
+      model: data.updateDataModel,
+    };
+  };
+
+  // Every JSON Pointer the tree reads: `{ path }` bindings, and `${/x}` inside
+  // a formatString template.
+  const pathsIn = (value: unknown): string[] => {
+    if (typeof value === "string") {
+      return [...value.matchAll(/\$\{(\/[^}]+)\}/g)].map((match) => match[1]);
+    }
+    if (Array.isArray(value)) return value.flatMap(pathsIn);
+    if (value && typeof value === "object") {
+      const own =
+        "path" in value && typeof value.path === "string" ? [value.path] : [];
+      return [...own, ...Object.values(value).flatMap(pathsIn)];
+    }
+    return [];
+  };
+
+  const callsIn = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.flatMap(callsIn);
+    if (value && typeof value === "object") {
+      const own =
+        "call" in value && typeof value.call === "string" ? [value.call] : [];
+      return [...own, ...Object.values(value).flatMap(callsIn)];
+    }
+    return [];
+  };
+
+  test("returns well-formed A2UI v0.9 operations for one surface on the app's catalog", async () => {
+    await run(tools.addTodo, { title: "Buy milk" }, ada);
+    const operations = await showProgress(ada);
+
+    // The protocol's own schema, strict: no stray keys, version on every one.
+    expect(A2uiMessageListSchema.safeParse(operations).error).toBeUndefined();
+    expect(operations.map((operation) => Object.keys(operation))).toEqual([
+      ["version", "createSurface"],
+      ["version", "updateComponents"],
+      ["version", "updateDataModel"],
+    ]);
+
+    const { surface, components, model } = partsOf(operations);
+    expect(surface.catalogId).toBe(TUTOR_CATALOG_ID);
+    for (const { version: _, ...body } of operations) {
+      expect(Object.values(body)).toEqual([
+        expect.objectContaining({ surfaceId: surface.surfaceId }),
+      ]);
+    }
+    expect(model.path).toBe("/");
+
+    // A tree the renderer can walk: unique ids, a root, no dangling child.
+    const ids = components.map((component) => component.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain("root");
+    const referenced = components.flatMap((component) =>
+      [component.child, component.children].flat().filter(Boolean),
+    );
+    expect(ids).toEqual(expect.arrayContaining(referenced));
+    expect(ids.filter((id) => id !== "root").sort()).toEqual(
+      [...new Set(referenced)].sort(),
+    );
+
+    // Each component is in the catalog, and the basic ones satisfy the basic
+    // catalog's strict prop schemas exactly as the browser will parse them.
+    const basic = new Map(BASIC_COMPONENTS.map((api) => [api.name, api]));
+    for (const { id, component, ...props } of components) {
+      if (component === "ProgressBar") continue;
+      const api = basic.get(component);
+      expect(api, `${id} is a ${component}`).toBeDefined();
+      expect(api?.schema.safeParse(props).error, id).toBeUndefined();
+    }
+    expect(components.map((component) => component.component)).toContain(
+      "ProgressBar",
+    );
+
+    const functions = new Set(BASIC_FUNCTION_APIS.map((api) => api.name));
+    for (const call of callsIn(components)) expect(functions).toContain(call);
+
+    // Every binding lands on a figure the data model holds.
+    const bound = new Set(pathsIn(components));
+    expect(bound.size).toBeGreaterThan(0);
+    for (const path of bound) {
+      expect(Object.keys(model.value)).toContain(path.slice(1));
+    }
+  });
+
+  test("the figures in the data model are the context's own rows", async () => {
+    for (const title of ["One", "Two", "Three"]) {
+      await run(tools.addTodo, { title }, ada);
+    }
+    const { todos: adaTodos } = await run(tools.listTodos, {}, ada);
+    await run(tools.setTodoDone, { id: adaTodos[0].id, done: true }, ada);
+    await run(tools.setTodoDone, { id: adaTodos[2].id, done: true }, ada);
+    // Grace's items, done or not, must not leak into Ada's figures.
+    const { todo } = await run(tools.addTodo, { title: "Grace's" }, grace);
+    await run(tools.setTodoDone, { id: todo.id, done: true }, grace);
+
+    const rows = (await db.select().from(todos)).filter(
+      (row) => row.userId === "user-ada",
+    );
+    const done = rows.filter((row) => row.done).length;
+
+    const { model } = partsOf(await showProgress(ada));
+    expect(model.value).toEqual({
+      total: rows.length,
+      done,
+      open: rows.length - done,
+      donePercent: Math.round((done / rows.length) * 100),
+      openPercent: 100 - Math.round((done / rows.length) * 100),
+    });
+    expect(model.value).toEqual({
+      total: 3,
+      done: 2,
+      open: 1,
+      donePercent: 67,
+      openPercent: 33,
+    });
+  });
+
+  test("an empty list draws zeros rather than dividing by zero", async () => {
+    const { model } = partsOf(await showProgress(ada));
+
+    expect(model.value).toEqual({
+      total: 0,
+      done: 0,
+      open: 0,
+      donePercent: 0,
+      openPercent: 0,
+    });
+  });
+
+  test("each call opens its own surface, so an earlier card keeps its figures", async () => {
+    const first = partsOf(await showProgress(ada)).surface.surfaceId;
+    const second = partsOf(await showProgress(ada)).surface.surfaceId;
+
+    expect(first).not.toBe(second);
+  });
 });

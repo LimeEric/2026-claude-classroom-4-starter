@@ -30,6 +30,12 @@ async function handler(request: Request) {
 
   const runtime = new CopilotRuntime({
     agents: { [TUTOR_AGENT_ID]: agent },
+    // Installs the A2UI middleware, which paints the operations `showProgress`
+    // returns, and injects a tool for the model to generate UI with: the
+    // Mastra bridge swaps the middleware's `render_a2ui` for `generate_a2ui`,
+    // a subagent on the tutor's own model that composes a surface from the
+    // browser's catalog. Explicit, rather than implied by that catalog.
+    a2ui: { injectA2UITool: true, agents: [TUTOR_AGENT_ID] },
   });
 
   return createCopilotRuntimeHandler({ runtime, basePath })(request);
