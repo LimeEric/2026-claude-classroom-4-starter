@@ -156,6 +156,11 @@ weight 600  headings, the primary link in a row, button labels
 Never reach for 500 or 700; the brand's whole voice is the 400/600 pair, and a
 third weight reads as a different site.
 
+MCP App views under `mcp-apps/` are the one exception to the face: they run in
+the host's sandboxed iframe, where `next/font` cannot reach, so they set
+`font-family: var(--font-sans, system-ui, sans-serif)` and take the host's
+font. Colours, weights and geometry there stay the brand's.
+
 The measured scale, in the proportion the site uses it:
 
 | px | Tailwind | Use |

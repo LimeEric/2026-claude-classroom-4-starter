@@ -60,6 +60,18 @@ export function listTodosFor(db: TodoDb, userId: string, query?: string) {
     .orderBy(asc(todos.seq));
 }
 
+/**
+ * The items not yet done, oldest first: what the MCP App's to-do form lists
+ * under its field, both when it opens and after each save.
+ */
+export function listOpenTodosFor(db: TodoDb, userId: string) {
+  return db
+    .select(todoColumns)
+    .from(todos)
+    .where(and(eq(todos.userId, userId), eq(todos.done, false)))
+    .orderBy(asc(todos.seq));
+}
+
 /** The one insert, shared by the `addTodo` tool and `POST /api/todos`. */
 export async function addTodoFor(db: TodoDb, userId: string, title: string) {
   const [row] = await db

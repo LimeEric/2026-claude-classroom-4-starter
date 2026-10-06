@@ -27,9 +27,9 @@
 }
 
 /*
- * Two dark selectors on purpose. The media query is the default, and step 24
- * lets the MCP host set `data-theme` on <html> from its own host context —
- * which has to win over the OS in both directions, hence the `:not()` guard.
+ * Two dark selectors on purpose. The media query is the default, and view.ts
+ * sets `data-theme` on <html> from the MCP host's own theme — which has to win
+ * over the OS in both directions, hence the `:not()` guard.
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -61,13 +61,19 @@
   --button-hover: #6e6e6e;
 }
 
-/* Transparent: the host's own surface is the ground this panel sits on. */
+/*
+ * Transparent: the host's own surface is the ground this panel sits on.
+ *
+ * Of the variables the host sets on <html>, only its font is taken: the colours
+ * above are the brand's, but the host's face is nearer the chat around the
+ * panel than a system stack, and its @font-face rules arrive inline.
+ */
 body {
   margin: 0;
   padding: 8px;
   background: transparent;
   color: var(--ink);
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-sans, system-ui, sans-serif);
   font-size: 16px;
   line-height: 24px;
 }
@@ -112,6 +118,11 @@ input {
   color: var(--ink);
   padding: 6px 8px;
   font: inherit;
+}
+
+/* Never colour alone: the status line beneath says why. */
+input[aria-invalid="true"] {
+  border-color: var(--danger);
 }
 
 input:focus-visible,
