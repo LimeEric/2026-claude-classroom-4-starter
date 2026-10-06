@@ -96,6 +96,22 @@ export const mcpTools = {
   },
 };
 
+/**
+ * The `structuredContent` of the MCP App's own tools on `/api/mcp`,
+ * `open_todo_form` and `submit_todo_form`, which mcp-apps/todo-form/view.ts
+ * parses again on its side of the iframe. Their tool definitions are not in
+ * `mcpTools`, because the stdio server registers all of that and cannot draw
+ * the form; `submit_todo_form` takes a `CreateTodoRequest`.
+ */
+export const OpenTodoFormResponse = z.object({ openTodos: z.array(Todo) });
+export type OpenTodoFormResponse = z.infer<typeof OpenTodoFormResponse>;
+
+export const SubmitTodoFormResponse = z.object({
+  todo: Todo,
+  openTodos: z.array(Todo),
+});
+export type SubmitTodoFormResponse = z.infer<typeof SubmitTodoFormResponse>;
+
 /** A tool result in both renderings: text for hosts that only read `content`, plus the typed value. */
 export const mcpToolResult = <T extends Record<string, unknown>>(value: T) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value) }],

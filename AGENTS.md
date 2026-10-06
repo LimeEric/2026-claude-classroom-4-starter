@@ -26,7 +26,7 @@ app/
   api/auth/[...all]/              Better Auth handler
   api/copilotkit/[...all]/        AG-UI bridge: session → Mastra agent → CopilotKit runtime
   api/todos/, api/todos/[id]/     REST API over lib/todo-tools.ts
-  api/mcp/                        MCP server over HTTP, OAuth-protected
+  api/mcp/                        MCP server over HTTP, OAuth-protected, with the to-do form MCP App
   .well-known/                    OAuth discovery documents, handed to Better Auth
 components/
   chat.tsx                        CopilotKit provider (with the A2UI catalog), CopilotChat, and the sidebar in one tree
@@ -42,9 +42,9 @@ lib/
   db.ts, schema.ts, auth-schema.ts   cached Drizzle connection; app tables; generated auth tables
   auth.ts, auth-config.ts, auth-cli.ts, auth-client.ts   server instance; shared options; auth:generate target; browser client
   api-route.ts                    bearer-only session and JSON helpers for /api/todos
-  mcp-server.ts, mcp-app-views.ts MCP server factory; reader for built MCP App views
+  mcp-server.ts, mcp-app-views.ts MCP server factory, including the form's app tools and ui:// resource; reader for built MCP App views
   project.ts, tool-result.ts      wizard rules (plain module); AG-UI tool-result decoding
-packages/api-contract/            zod request/response schemas and MCP tool definitions shared by app and CLI
+packages/api-contract/            zod request/response schemas and MCP tool definitions shared by app, CLI and MCP App views
 cli/                              `ai-tutor` CLI (commander, esbuild-bundled) including `mcp --stdio`
 mcp-apps/<name>/ → mcp-apps/dist/ MCP App views, each bundled into one HTML file by scripts/build-views.mjs
 drizzle/                          generated migrations
@@ -97,6 +97,14 @@ docs/mcp.md                       registering both MCP servers with Claude Code
 - The injected tool learns the catalog id only from the schema context, so `includeSchema` on the provider stays `true`, or its surfaces ask for the basic catalog instead of ours.
 - A2UI catalog prop schemas must be zod 3 (`zod3`), because the binder reads zod 3 internals and passes a zod 4 prop's `{ path }` through unresolved.
 - Mastra memory is durable in SQLite, but the default `InMemoryAgentRunner` also keeps a bounded replay cache that can restore the browser transcript until eviction or restart — do not mistake either for the other when debugging.
+
+### MCP App views
+
+- App tools (`registerAppTool`) stay out of the contract's `mcpTools`, because the CLI's stdio server registers all of `mcpTools` and has no iframe to draw a view in.
+- `visibility: ["app"]` (as on `submit_todo_form`) is enforced by the host, not the server: the server still lists the tool and runs any call to it, so an app-only tool must be as safe as a model tool for the token's user.
+- Views import the contract package, so it stays free of Node-only imports, and it must resolve the same `zod` as ext-apps, whose `App` switches that one instance to jitless parsing for the iframe's no-`unsafe-eval` CSP.
+- A view imports the root `@modelcontextprotocol/ext-apps` entry and Vite bundles it with the client SDK and zod into the one HTML file, so `@modelcontextprotocol/client` is a build dependency of the views, not only of the tests.
+- A view that applies host style variables only changes what its `style.css` reads through `var(--…)`, and the todo-form reads only `--font-sans`, so the brand colours survive any host.
 
 ### Styling
 

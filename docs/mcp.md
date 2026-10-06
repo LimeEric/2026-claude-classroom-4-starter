@@ -96,7 +96,7 @@ To take it out again: `claude mcp remove ai-tutor` (add `-s user` or `-s project
 
 ## Remote option: `/api/mcp` over HTTP
 
-The web app serves the same tools over Streamable HTTP at `/api/mcp`, working on the database directly. It accepts only OAuth access tokens that the app itself issued for that URL, and the list a token reaches is the list of the user who approved it.
+The web app serves the same tools over Streamable HTTP at `/api/mcp`, working on the database directly, plus a fourth, `open_todo_form`: an MCP App that draws a to-do form inside a host's chat, prefilled with the optional `title` it is called with and listing the open to-dos. The form's Add button saves through `submit_todo_form`, a tool only the form may call, so the model drafts and the user decides; the form then tells the model what was added. Hosts that cannot render MCP Apps get a line of text instead, and the stdio server has neither tool. It accepts only OAuth access tokens that the app itself issued for that URL, and the list a token reaches is the list of the user who approved it.
 
 Claude Code needs no client ID or secret. It identifies itself with a Client ID Metadata Document, `https://claude.ai/oauth/claude-code-client-metadata`, which the app fetches when you log in. So the app needs outbound HTTPS to `claude.ai`.
 
@@ -150,7 +150,7 @@ In non-interactive runs (`claude -p`), Claude Code cannot open a browser. Log in
 
 ### Check that it's connected
 
-After logging in, `claude mcp get ai-tutor-http` shows `✔ Connected`, and `/mcp` lists the three tools. Ask Claude something like "what's on my ai-tutor list?" to check it end to end. It shows the list of the account you allowed on the consent page.
+After logging in, `claude mcp get ai-tutor-http` shows `✔ Connected`, and `/mcp` lists the tools. Ask Claude something like "what's on my ai-tutor list?" to check it end to end. It shows the list of the account you allowed on the consent page.
 
 If the login does not start, check the two things Claude Code reads before it opens the browser:
 

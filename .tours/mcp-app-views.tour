@@ -39,7 +39,7 @@
     },
     {
       "file": "mcp-apps/todo-form/view.ts",
-      "line": 44,
+      "line": 72,
       "title": "view.ts: plain DOM, and a seam",
       "description": "Everything in this file is DOM. Typed `getElementById` lookups, `Add` disabled while the trimmed title is empty, Enter submitting. No framework, and no MCP: `@modelcontextprotocol/ext-apps` is installed but nothing here imports it.\n\n`onSubmit` is the seam, and today it only writes a line into the status paragraph. The marked block says what step 24 puts in its place: connect the ext-apps `App`, read the initial title out of the tool input the host delivers, and call the server tool with the typed one.\n\n**Key point:** `setTitle`, `setStatus` and `renderOpenTodos` above are exported and unused. They are the surface the host will drive, and writing them now keeps step 24 about the protocol rather than about the DOM."
     },
