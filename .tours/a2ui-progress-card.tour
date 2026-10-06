@@ -33,7 +33,7 @@
     },
     {
       "file": "lib/tutor.ts",
-      "line": 46,
+      "line": 47,
       "title": "Agent: when to show it, and what not to say",
       "description": "The instructions name `showProgress` and say when to reach for it. They also tell the model not to count, repeat or round the figures, because the card already states them. Without that line the model tends to restate the numbers in prose, and then there are two sources that can disagree."
     },
@@ -51,15 +51,15 @@
     },
     {
       "file": "components/a2ui-catalog.tsx",
-      "line": 15,
+      "line": 22,
       "title": "Trap: the binder speaks zod 3",
       "description": "The A2UI binder decides which props to resolve against the data model by inspecting the zod schema's internals (`_def.typeName`), which are zod 3's. With the app's zod 4, `{ path: \"/done\" }` would reach the component unresolved.\n\n`zod/v3` from zod 4 does not help either: TypeScript rejects its `ZodObject` in place of the renderer's. Hence the `zod3` alias in `package.json`, pinned to the renderer's own version."
     },
     {
       "file": "components/a2ui-catalog.tsx",
-      "line": 29,
+      "line": 38,
       "title": "Catalog: definitions and renderers",
-      "description": "Each entry pairs a props schema with a renderer. `ProgressBar` declares `value`, `max` and `label` as `Dynamic*` unions (literal or binding), which is what tells the binder to resolve them; the renderer below only ever sees plain values.\n\n`Card` and `Text` reuse the basic catalog's names and schemas but are drawn by the design system: the stock card brings an 8px radius and a shadow, the stock heading weight 700. Because `includeBasicCatalog` puts the basic components first and ours after, ours replace them under the same name.\n\n**Key point:** the catalog is the security boundary. A surface can only use what is registered here."
+      "description": "Each entry pairs a props schema with a renderer. `ProgressBar` declares `value`, `max` and `label` as `Dynamic*` unions (literal or binding), which is what tells the binder to resolve them; the renderer below only ever sees plain values.\n\n`Card`, `Text`, `TextField`, `DateTimeInput` and `ChoicePicker` reuse the basic catalog's names and schemas but are drawn by the design system: the stock card brings an 8px radius and a shadow, the stock heading and labels weight 700, the stock inputs rounded corners. Because `includeBasicCatalog` puts the basic components first and ours after, ours replace them under the same name.\n\n**Key point:** the catalog is the security boundary. A surface can only use what is registered here."
     },
     {
       "file": "components/ui/progress-bar.tsx",

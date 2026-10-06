@@ -4,6 +4,8 @@ import { ProjectWizard } from "@/components/project-wizard";
 import { SignOutButton } from "@/components/sign-out-button";
 import { HeaderLink, PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth";
+import { currentDate } from "@/lib/project";
+import { PROJECT_AGENT_ID } from "@/lib/project-agent";
 
 export default async function NewProject() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -12,8 +14,8 @@ export default async function NewProject() {
   }
 
   // The client has its own clock and its own time zone, so the day the page
-  // plans against is decided once, here on the server.
-  const today = new Date().toISOString().slice(0, 10);
+  // plans against is decided here on the server, as the agent's route does.
+  const today = currentDate();
 
   return (
     <>
@@ -25,7 +27,7 @@ export default async function NewProject() {
         <SignOutButton />
       </PageHeader>
       <main className="flex flex-1 overflow-hidden bg-ground">
-        <ProjectWizard today={today} />
+        <ProjectWizard agentId={PROJECT_AGENT_ID} today={today} />
       </main>
     </>
   );

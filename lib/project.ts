@@ -10,6 +10,15 @@ import { z } from "zod";
 
 export const criticalities = ["low", "medium", "high"] as const;
 
+/**
+ * Today as an ISO calendar date, by the server's clock. The page and the
+ * agent's route both call this on the server, so the date the card is planned
+ * against is the one the page shows, whatever the browser's time zone.
+ */
+export function currentDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 /** True for a string that is both shaped `YYYY-MM-DD` and a day that exists. */
 function isCalendarDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -82,7 +91,7 @@ export const projectPatchSchema = z.object({
 
 export type ProjectPatch = z.infer<typeof projectPatchSchema>;
 
-type ProjectErrors = Partial<Record<keyof Project, string>>;
+export type ProjectErrors = Partial<Record<keyof Project, string>>;
 
 /**
  * Merges a change into the current project and checks the result. A field that

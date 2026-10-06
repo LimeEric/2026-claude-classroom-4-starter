@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # ai-tutor
 
-AI tutoring web app on Next.js 16 App Router + React 19 + Tailwind v4: a Mastra agent (Bartholomew, a butler who keeps the user's to-do list) served to a CopilotKit chat over AG-UI, with A2UI cards in the transcript, behind Better Auth email/password sign-in, over a Drizzle/SQLite persistence layer, with a Vitest + Playwright test harness. The same list is reachable through a REST API, a CLI, and two MCP servers.
+AI tutoring web app on Next.js 16 App Router + React 19 + Tailwind v4: a Mastra agent (Bartholomew, a butler who keeps the user's to-do list) served to a CopilotKit chat over AG-UI, with A2UI cards in the transcript, plus a project wizard whose own agent fills an A2UI card outside any chat, behind Better Auth email/password sign-in, over a Drizzle/SQLite persistence layer, with a Vitest + Playwright test harness. The same list is reachable through a REST API, a CLI, and two MCP servers.
 
 The source is commented where a decision is not obvious; this file is the map, plus the traps that no single file shows. Open the file before asking here.
 
@@ -21,29 +21,34 @@ app/
   layout.tsx, globals.css         root layout; design tokens and the CopilotKit theme bridge
   page.tsx                        `/`, the chat page (session-gated Server Component)
   login/, signup/                 email/password forms (client components)
-  projects/new/                   project wizard scaffold — no agent behind it yet, seam marked in onSubmit
+  projects/new/                   project wizard: one single-turn run per submit, the card sent along and updated in place
   device/, consent/               approval pages for the CLI device flow and for MCP OAuth
   api/auth/[...all]/              Better Auth handler
   api/copilotkit/[...all]/        AG-UI bridge: session → Mastra agent → CopilotKit runtime
+  api/project-agent/[...all]/     the project agent's own runtime: A2UI middleware, no injected generate tool
   api/todos/, api/todos/[id]/     REST API over lib/todo-tools.ts
   api/mcp/                        MCP server over HTTP, OAuth-protected
   .well-known/                    OAuth discovery documents, handed to Better Auth
 components/
   chat.tsx                        CopilotKit provider (with the A2UI catalog), CopilotChat, and the sidebar in one tree
-  a2ui-catalog.tsx                the A2UI catalog: the basic components plus ProgressBar, with Card and Text redrawn
+  a2ui-catalog.tsx                the A2UI catalog of both pages: the basic components plus ProgressBar and FieldError, with Card, Text and the three inputs redrawn
   todos-sidebar.tsx               read-only mirror of the list; the agent is the browser's only write path
   todo-tool-calls.tsx             useRenderTool rows for listTodos, addTodo, setTodoDone (showProgress draws through A2UI)
-  project-wizard.tsx, device-approval.tsx, oauth-consent.tsx, sign-out-button.tsx
+  project-wizard.tsx              CopilotKit and A2UI providers, no chat: sends the card's data model with each run, applies the result
+  device-approval.tsx, oauth-consent.tsx, sign-out-button.tsx
   ui/                             presentational primitives — extend one instead of repeating its class string
 lib/
-  tutor.ts                        the whole agent: instructions, model, memory, tools
+  tutor.ts                        the whole tutor agent: instructions, model, memory, tools
+  project-agent.ts                the project agent: no memory, today's date and the sent card, one tool that patches it
+  project-card.ts                 the project card's fixed A2UI tree and data model, its create and update operations
+  openrouter.ts                   the OpenRouter model config both agents use, proxy included
   todo-tools.ts                   every todo query; the agent tools, the REST routes and both MCP servers call it
   progress-card.ts                showProgress's A2UI tree and operations, and the catalog id the browser registers
   db.ts, schema.ts, auth-schema.ts   cached Drizzle connection; app tables; generated auth tables
   auth.ts, auth-config.ts, auth-cli.ts, auth-client.ts   server instance; shared options; auth:generate target; browser client
   api-route.ts                    bearer-only session and JSON helpers for /api/todos
   mcp-server.ts, mcp-app-views.ts MCP server factory; reader for built MCP App views
-  project.ts, tool-result.ts      wizard rules (plain module); AG-UI tool-result decoding
+  project.ts, tool-result.ts      project schema, patch rules and today's date (plain module); AG-UI tool-result decoding
 packages/api-contract/            zod request/response schemas and MCP tool definitions shared by app and CLI
 cli/                              `ai-tutor` CLI (commander, esbuild-bundled) including `mcp --stdio`
 mcp-apps/<name>/ → mcp-apps/dist/ MCP App views, each bundled into one HTML file by scripts/build-views.mjs
@@ -96,6 +101,8 @@ docs/mcp.md                       registering both MCP servers with Claude Code
 - A tool draws a fixed A2UI card by returning `{ a2ui_operations: [...] }`, which the runtime's A2UI middleware paints; the route's `injectA2UITool: true` also gives the model a UI-generating tool, which the Mastra bridge turns from `render_a2ui` into `generate_a2ui`, a subagent on the tutor's own model.
 - The injected tool learns the catalog id only from the schema context, so `includeSchema` on the provider stays `true`, or its surfaces ask for the basic catalog instead of ours.
 - A2UI catalog prop schemas must be zod 3 (`zod3`), because the binder reads zod 3 internals and passes a zod 4 prop's `{ path }` through unresolved.
+- The Mastra bridge files the browser's AG-UI context under the RequestContext's `"ag-ui"` key and never shows it to the model, so an agent that should see a context entry has to put it in its own instructions, as the project agent does with the card.
+- One runtime's `a2ui` options, `injectA2UITool` included, reach every agent in its `agents` list, so an agent that needs the A2UI middleware without the generate tool gets a runtime of its own, as the project agent does.
 - Mastra memory is durable in SQLite, but the default `InMemoryAgentRunner` also keeps a bounded replay cache that can restore the browser transcript until eviction or restart — do not mistake either for the other when debugging.
 
 ### Styling

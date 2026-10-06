@@ -4,6 +4,7 @@ import { Mastra } from "@mastra/core/mastra";
 import { LibSQLStore } from "@mastra/libsql";
 import { Memory } from "@mastra/memory";
 import { db } from "@/lib/db";
+import { openRouterModel } from "@/lib/openrouter";
 import { createTodoTools } from "@/lib/todo-tools";
 
 /** Registry key of the one agent, and the CopilotKit `agentId` on the client. */
@@ -104,18 +105,7 @@ function createMastra(): TutorMastra {
         id: TUTOR_AGENT_ID,
         name: "Bartholomew",
         instructions,
-        // Mastra's model router reads OPENROUTER_API_KEY itself; no AI SDK
-        // provider package is involved.
-        model: {
-          id: "openrouter/z-ai/glm-5.3-flash",
-          // OPENROUTER_BASE_URL routes the traffic through a local proxy
-          // (mitmproxy in reverse mode, see .env.example). A custom url
-          // switches off the router's own key lookup, so hand the key over.
-          ...(process.env.OPENROUTER_BASE_URL && {
-            url: process.env.OPENROUTER_BASE_URL,
-            apiKey: process.env.OPENROUTER_API_KEY,
-          }),
-        },
+        model: openRouterModel("z-ai/glm-5.3-flash"),
         memory: new Memory({ storage, options: { lastMessages: 40 } }),
         // The tools carry no user of their own: each reads the id off the
         // per-request RequestContext the route builds from the session.

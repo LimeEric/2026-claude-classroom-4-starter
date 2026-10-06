@@ -147,15 +147,22 @@ above the bar, so the fill is never the only channel. `ink-soft` rather than
 `button` for the fill, because the graphite button colour all but vanishes
 into the dark track.
 
-## A2UI cards in the transcript
+## A2UI cards
 
-A card the agent draws through A2UI is built from `components/a2ui-catalog.tsx`,
+A card an agent draws through A2UI, in the transcript or on the project page, is built from `components/a2ui-catalog.tsx`,
 not from the stock basic catalog styles, which bring an 8px radius, a drop
 shadow and `#666` captions. The catalog redraws `Card` as a panel
 (`border border-edge bg-surface p-3`) and `Text` on our type scale: `h1`/`h2`
 at `text-xl`, `h3`–`h5` at `text-base`, all 600; `caption` at
 `text-sm text-ink-mute tabular-nums`. Leaves carry `m-1`, which with the
-card's `p-3` lands on 8px between leaves and 16px to the edge. A new
+card's `p-3` lands on 8px between leaves and 16px to the edge. `TextField`,
+`DateTimeInput` and `ChoicePicker` are redrawn as record-card rows: the label
+in a fixed left column (`sm:w-36`, stacked on a phone), the input on the
+**Input** recipe through `inputClass` from `components/ui/field.tsx`, and an
+option group as native radios or checkboxes filled `accent-button`.
+`FieldError` is the line under an input that the server refused a value for:
+`text-sm text-danger`, indented `sm:pl-39` to sit under the input rather than
+the label, and nothing at all while its bound text is empty. A new
 component that the agent's surfaces need goes into that catalog with the same
 recipes as its React twin in `components/ui/`.
 
